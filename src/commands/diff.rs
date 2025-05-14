@@ -83,9 +83,10 @@ fn diff_single_file(
 
     // Read and decrypt the stored file content
     let decrypted_stored_content = if storage_type == "sqlite" {
-        // Use SQLite storage to get the file, but actually read from filesystem
-        // This matches our current SQLite implementation
-        let encrypted_stored_content = fs::read(repo_path.join(&file.repo_path))?;
+        // Use SQLite storage to get the file
+        use crate::storage::sqlite::SqliteStorage;
+        let storage = SqliteStorage::new(repo_path)?;
+        let encrypted_stored_content = storage.get_file(&file.repo_path)?;
         crypto.decrypt(&encrypted_stored_content)?
     } else {
         // Use file-based storage
@@ -172,13 +173,26 @@ pub fn diff_files(options: Option<DiffOptions>) -> Result<(), KittyError> {
     io::stdout().flush()?;
     let password = read_password()?;
     println!(); // Add a newline after password input
-
-    // Read and decrypt repository configuration
-    let encrypted_config = fs::read(repo_path.join("config.enc"))?;
+    
+    // Get storage type
+    let storage_type = get_storage_type(&repo_path)?;
+    
+    // Get salt and create crypto instance
     let config_salt = hex::decode(get_repository_salt(&repo_path)?)?;
     let crypto = Crypto::from_password_and_salt(&password, &config_salt);
-    let decrypted_config = crypto.decrypt(&encrypted_config)?;
-    let repository: Repository = serde_json::from_slice(&decrypted_config)?;
+    
+    // Load repository based on storage type
+    let repository: Repository = if storage_type == "sqlite" {
+        // Use SQLite storage to load repository
+        use crate::storage::sqlite::SqliteStorage;
+        let storage = SqliteStorage::new(&repo_path)?;
+        storage.load_repository()?
+    } else {
+        // Use file-based storage
+        let encrypted_config = fs::read(repo_path.join("config.enc"))?;
+        let decrypted_config = crypto.decrypt(&encrypted_config)?;
+        serde_json::from_slice(&decrypted_config)?
+    };
 
     if repository.files.is_empty() {
         println!("No files are currently tracked in the repository.");

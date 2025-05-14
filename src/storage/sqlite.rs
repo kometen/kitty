@@ -176,6 +176,16 @@ impl SqliteStorage {
         let db_path = self.connection.path().unwrap();
         let db_path = Path::new(db_path);
         let repo_path = db_path.parent().unwrap();
+        
+        // Create parent directories if they don't exist
+        if let Some(parent) = Path::new(path).parent() {
+            let full_parent = repo_path.join(parent);
+            if !full_parent.exists() {
+                fs::create_dir_all(&full_parent)?;
+            }
+        }
+        
+        // Write the file to the repository
         fs::write(repo_path.join(path), encrypted_data)?;
         Ok(())
     }
@@ -186,7 +196,29 @@ impl SqliteStorage {
         let db_path = Path::new(db_path);
         let repo_path = db_path.parent().unwrap();
         let file_path = repo_path.join(path);
+        
+        // Check if the file exists in the repository
         if !file_path.exists() {
+            // Try to query the database to see if the file exists but path might be wrong
+            let result = self.connection.query_row(
+                "SELECT repo_path FROM files WHERE original_path = ? OR repo_path = ?",
+                params![path, path],
+                |row| row.get::<_, String>(0)
+            );
+            
+            match result {
+                Ok(correct_path) => {
+                    // Try with the path from the database
+                    let corrected_path = repo_path.join(&correct_path);
+                    if corrected_path.exists() {
+                        return Ok(fs::read(corrected_path)?);
+                    }
+                }
+                Err(_) => {
+                    // File really not found in database either
+                }
+            }
+            
             return Err(KittyError::FileNotTracked(path.to_string()));
         }
         
