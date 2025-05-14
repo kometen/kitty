@@ -1,5 +1,6 @@
 use crate::commands::init::KittyError;
 use std::fs;
+use std::io;
 use std::{path::Path, process::Command};
 
 fn run_with_sudo(command: &[&str]) -> Result<(), KittyError> {

@@ -1,5 +1,7 @@
-use crate::commands::init::{KittyError, Crypto, Repository, TrackedFile};
-use crate::utils::{get_repository_path, get_repository_salt};
+use crate::{
+    commands::init::{Crypto, KittyError, Repository, TrackedFile},
+    utils::file::{get_repository_path, get_repository_salt},
+};
 use chrono::Utc;
 use rpassword::read_password;
 use std::{

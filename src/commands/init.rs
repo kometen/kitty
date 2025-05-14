@@ -1,3 +1,4 @@
+use crate::utils::file::{get_repository_path, get_repository_salt};
 use chacha20poly1305::aead::Aead;
 use chacha20poly1305::{ChaCha20Poly1305, Key, KeyInit, Nonce};
 use chrono::{DateTime, Utc};
@@ -12,8 +13,6 @@ use std::{
     path::Path,
 };
 use thiserror::Error;
-
-use crate::utils::{get_repository_path, get_repository_salt};
 
 const REPOSITORY_DIR: &str = ".kitty";
 const SALT_LEN: usize = 16;
