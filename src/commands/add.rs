@@ -85,26 +85,48 @@ pub fn add_file(path: &str) -> Result<(), KittyError> {
     // Parse the JSON configuration
     let mut repository: Repository = serde_json::from_slice(&decrypted_config)?;
 
-    // Generate a unique filename for the repository
-    let file_id = Uuid::new_v4().to_string();
-    let repo_file_path = format!("files/{}", file_id);
-
+    // Check if this file is already tracked
+    let file_path_str = file_path.to_string_lossy().to_string();
+    let existing_file_index = repository.files.iter().position(|f| f.original_path == file_path_str);
+    
     // Encrypt file content
     let encrypted_content = crypto.encrypt(&file_content)?;
-
-    // Save encrypted file to repository
-    fs::write(repo_path.join(&repo_file_path), encrypted_content)?;
-
-    // Update repository config
+    
     let now = Utc::now();
-    repository.files.push(TrackedFile {
-        original_path: file_path.to_string_lossy().to_string(),
-        repo_path: repo_file_path,
-        added_at: now,
-        last_updated: now,
-        // In a real implementation, you would compute a hash here
-        hash: "placeholder_hash".to_string(),
-    });
+    
+    if let Some(index) = existing_file_index {
+        // File is already tracked, update the existing entry
+        println!("File is already tracked, updating existing entry.");
+        let tracked_file = &mut repository.files[index];
+        
+        // Save the repo_path as we'll reuse it
+        let repo_file_path = tracked_file.repo_path.clone();
+        
+        // Update the tracked file metadata
+        tracked_file.last_updated = now;
+        tracked_file.hash = "placeholder_hash".to_string(); // Updated hash
+        
+        // Save encrypted file to repository using the same path
+        fs::write(repo_path.join(&repo_file_path), encrypted_content)?;
+    } else {
+        // File is not tracked yet, create a new entry
+        // Generate a unique filename for the repository
+        let file_id = Uuid::new_v4().to_string();
+        let repo_file_path = format!("files/{}", file_id);
+        
+        // Save encrypted file to repository
+        fs::write(repo_path.join(&repo_file_path), encrypted_content)?;
+
+        // Add new entry to repository config
+        repository.files.push(TrackedFile {
+            original_path: file_path_str,
+            repo_path: repo_file_path,
+            added_at: now,
+            last_updated: now,
+            // In a real implementation, you would compute a hash here
+            hash: "placeholder_hash".to_string(),
+        });
+    }
 
     // Serialize and encrypt updated configuration
     let updated_config_json = serde_json::to_string(&repository)?;
@@ -113,6 +135,10 @@ pub fn add_file(path: &str) -> Result<(), KittyError> {
     // Write updated encrypted configuration
     fs::write(repo_path.join("config.enc"), encrypted_updated_config)?;
 
-    println!("File added successfully: {}", path);
+    if existing_file_index.is_some() {
+        println!("File updated successfully: {}", path);
+    } else {
+        println!("File added successfully: {}", path);
+    }
     Ok(())
 }
