@@ -1,4 +1,4 @@
-use crate::utils::file::get_repository_path;
+use crate::utils::file::{get_repository_path, get_storage_type};
 use chacha20poly1305::aead::Aead;
 use chacha20poly1305::{ChaCha20Poly1305, Key, KeyInit, Nonce};
 use chrono::{DateTime, Utc};
@@ -50,6 +50,12 @@ pub enum KittyError {
 
     #[error("Hex decoding error: {0}")]
     HexDecoding(#[from] FromHexError),
+    
+    #[error("Database error: {0}")]
+    Database(String),
+    
+    #[error("Storage type error: {0}")]
+    StorageType(String),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -158,7 +164,25 @@ impl Crypto {
     }
 }
 
+/// Options for initializing a repository
+pub struct InitOptions {
+    /// Use SQLite for storage instead of files
+    pub use_sqlite: bool,
+}
+
+impl Default for InitOptions {
+    fn default() -> Self {
+        Self {
+            use_sqlite: false,
+        }
+    }
+}
+
 pub fn init_repository() -> Result<(), KittyError> {
+    init_repository_with_options(&InitOptions::default())
+}
+
+pub fn init_repository_with_options(options: &InitOptions) -> Result<(), KittyError> {
     let repo_path = get_repository_path()?;
 
     if repo_path.exists() {
@@ -184,12 +208,34 @@ pub fn init_repository() -> Result<(), KittyError> {
         files: Vec::new(),
     };
 
-    // Serialize and encrypt the repository configuration
-    let config_json = serde_json::to_string(&repository)?;
-    let encrypted_config = crypto.encrypt(config_json.as_bytes())?;
-
-    // Write encrypted configuration to file
-    fs::write(repo_path.join("config.enc"), encrypted_config)?;
+    if options.use_sqlite {
+        // Initialize SQLite storage
+        println!("Using SQLite storage backend");
+        
+        use crate::storage::sqlite::SqliteStorage;
+        
+        // Create and initialize the SQLite database
+        let storage = SqliteStorage::new(&repo_path)?;
+        
+        // Save the repository configuration to SQLite
+        storage.save_repository(&repository)?;
+        
+        // Create a marker file to indicate we're using SQLite
+        fs::write(repo_path.join("storage.type"), "sqlite")?;
+    } else {
+        // Use file-based storage
+        println!("Using file-based storage backend");
+        
+        // Serialize and encrypt the repository configuration
+        let config_json = serde_json::to_string(&repository)?;
+        let encrypted_config = crypto.encrypt(config_json.as_bytes())?;
+        
+        // Write encrypted configuration to file
+        fs::write(repo_path.join("config.enc"), encrypted_config)?;
+        
+        // Create a marker file to indicate we're using file-based storage
+        fs::write(repo_path.join("storage.type"), "file")?;
+    }
 
     // Store the salt in a separate file for easier access
     fs::write(repo_path.join("salt.key"), hex::encode(&crypto.salt))?;

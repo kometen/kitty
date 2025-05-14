@@ -1,14 +1,14 @@
 mod commands;
-mod utils;
 mod storage;
+mod utils;
 
 use clap::{Parser, Subcommand};
-use commands::add::add_file;
-use commands::diff::diff_files;
-use commands::init::{init_repository, KittyError};
-use commands::list::list_files;
-use commands::remove::remove_file;
-use commands::restore::{restore_file, restore_files};
+use commands::{
+    add::add_file,
+    init::{init_repository_with_options, InitOptions, KittyError},
+    list::list_files,
+    remove::remove_file,
+};
 
 #[derive(Parser)]
 #[command(author, version, about = "A Git-like configuration management tool")]
@@ -20,7 +20,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Initialize a new kitty repository
-    Init,
+    Init {
+        /// Use SQLite for storage instead of files
+        #[arg(long)]
+        sqlite: bool,
+    },
 
     /// Add a file to track in the repository
     Add {
@@ -32,11 +36,11 @@ enum Commands {
     Rm {
         /// Path to the file to remove
         path: String,
-        
+
         /// Don't prompt for confirmation
         #[arg(long)]
         force: bool,
-        
+
         /// Keep the file content in the repository, just stop tracking it
         #[arg(long)]
         keep_content: bool,
@@ -49,19 +53,19 @@ enum Commands {
     Diff {
         /// Path to the file to diff
         path: Option<String>,
-        
+
         /// Show files with changes only
         #[arg(long)]
         only_changed: bool,
-        
+
         /// Show summary of changes
         #[arg(long)]
         summary: bool,
-        
+
         /// Show a unified diff format with context
         #[arg(long)]
         context: bool,
-        
+
         /// Number of context lines to show
         #[arg(long, default_value = "3")]
         context_lines: usize,
@@ -71,15 +75,15 @@ enum Commands {
     Restore {
         /// Path to the file to restore
         path: String,
-        
+
         /// Don't prompt for confirmation
         #[arg(long)]
         force: bool,
-        
+
         /// Show what would be restored without actually restoring
         #[arg(long)]
         dry_run: bool,
-        
+
         /// Backup existing files before restoring
         #[arg(long, default_value = "true")]
         backup: bool,
@@ -90,15 +94,15 @@ enum Commands {
         /// Filter files by path (partial match)
         #[arg(long)]
         path: Option<String>,
-        
+
         /// Filter files by date (format: YYYY-MM-DD)
         #[arg(long)]
         date: Option<String>,
-        
+
         /// Group files by path components
         #[arg(long)]
         group: bool,
-        
+
         /// Use SQLite storage (experimental)
         #[arg(long)]
         sqlite: bool,
@@ -109,9 +113,18 @@ fn main() -> Result<(), KittyError> {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Init => init_repository(),
+        Commands::Init { sqlite } => {
+            let options = InitOptions {
+                use_sqlite: *sqlite,
+            };
+            init_repository_with_options(&options)
+        }
         Commands::Add { path } => add_file(path),
-        Commands::Rm { path, force, keep_content } => {
+        Commands::Rm {
+            path,
+            force,
+            keep_content,
+        } => {
             let options = commands::remove::RemoveOptions {
                 path: path.clone(),
                 force: *force,
@@ -124,7 +137,13 @@ fn main() -> Result<(), KittyError> {
             // TODO: Implement status functionality
             Ok(())
         }
-        Commands::Diff { path, only_changed, summary, context, context_lines } => {
+        Commands::Diff {
+            path,
+            only_changed,
+            summary,
+            context,
+            context_lines,
+        } => {
             let options = commands::diff::DiffOptions {
                 path: path.clone(),
                 only_changed: *only_changed,
@@ -134,7 +153,12 @@ fn main() -> Result<(), KittyError> {
             };
             commands::diff::diff_files(Some(options))
         }
-        Commands::Restore { path, force, dry_run, backup } => {
+        Commands::Restore {
+            path,
+            force,
+            dry_run,
+            backup,
+        } => {
             let options = commands::restore::RestoreOptions {
                 path: Some(path.clone()),
                 force: *force,
@@ -142,8 +166,13 @@ fn main() -> Result<(), KittyError> {
                 backup: *backup,
             };
             commands::restore::restore_files(Some(options))
-        },
-        Commands::List { path, date, group, sqlite } => {
+        }
+        Commands::List {
+            path,
+            date,
+            group,
+            sqlite,
+        } => {
             let options = commands::list::ListOptions {
                 path: path.clone(),
                 date: date.clone(),
@@ -154,6 +183,6 @@ fn main() -> Result<(), KittyError> {
                 // TODO: Implement SQLite storage integration
             }
             list_files(Some(options))
-        },
+        }
     }
 }

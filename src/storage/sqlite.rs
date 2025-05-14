@@ -2,6 +2,7 @@ use crate::commands::init::{KittyError, Repository, TrackedFile};
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, types::Type};
 use std::path::{Path, PathBuf};
+use std::fs;
 
 /// SQLite storage for the kitty repository
 pub struct SqliteStorage {
@@ -13,7 +14,7 @@ impl SqliteStorage {
     pub fn new(repo_path: &Path) -> Result<Self, KittyError> {
         let db_path = repo_path.join("kitty.db");
         let connection = Connection::open(db_path)
-            .map_err(|e| KittyError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+            .map_err(|e| KittyError::Database(e.to_string()))?;
         
         // Initialize the database if needed
         Self::initialize_db(&connection)?;
@@ -31,7 +32,7 @@ impl SqliteStorage {
             )",
             [],
         )
-        .map_err(|e| KittyError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+        .map_err(|e| KittyError::Database(e.to_string()))?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS files (
@@ -54,7 +55,7 @@ impl SqliteStorage {
         // First, delete existing repository info
         self.connection
             .execute("DELETE FROM repository", [])
-            .map_err(|e| KittyError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+            .map_err(|e| KittyError::Database(e.to_string()))?;
         
         // Insert the new repository info
         self.connection
@@ -82,7 +83,7 @@ impl SqliteStorage {
                         file.hash
                     ],
                 )
-                .map_err(|e| KittyError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+                .map_err(|e| KittyError::Database(e.to_string()))?;
         }
         
         Ok(())
@@ -155,17 +156,41 @@ impl SqliteStorage {
     pub fn get_salt(&self) -> Result<String, KittyError> {
         let mut stmt = self.connection
             .prepare("SELECT salt FROM repository WHERE id = 1")
-            .map_err(|e| KittyError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+            .map_err(|e| KittyError::Database(e.to_string()))?;
             
         let salt: String = stmt.query_row([], |row| row.get(0))
             .map_err(|e| {
                 match e {
                     rusqlite::Error::QueryReturnedNoRows => KittyError::RepositoryNotFound,
-                    _ => KittyError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+                    _ => KittyError::Database(e.to_string())
                 }
             })?;
             
         Ok(salt)
+    }
+    
+    /// Save an encrypted file to the repository
+    pub fn save_file(&self, path: &str, encrypted_data: &[u8]) -> Result<(), KittyError> {
+        // For simplicity, we'll still use the filesystem to store file content
+        // But we could store it in the database as well
+        let db_path = self.connection.path().unwrap();
+        let db_path = Path::new(db_path);
+        let repo_path = db_path.parent().unwrap();
+        fs::write(repo_path.join(path), encrypted_data)?;
+        Ok(())
+    }
+    
+    /// Get an encrypted file from the repository
+    pub fn get_file(&self, path: &str) -> Result<Vec<u8>, KittyError> {
+        let db_path = self.connection.path().unwrap();
+        let db_path = Path::new(db_path);
+        let repo_path = db_path.parent().unwrap();
+        let file_path = repo_path.join(path);
+        if !file_path.exists() {
+            return Err(KittyError::FileNotTracked(path.to_string()));
+        }
+        
+        Ok(fs::read(file_path)?)
     }
 }
 

@@ -12,6 +12,26 @@ pub fn get_repository_path() -> Result<PathBuf, KittyError> {
     Ok(current_dir.join(REPOSITORY_DIR))
 }
 
+/// Get the storage type for the repository
+pub fn get_storage_type(repo_path: &Path) -> Result<String, KittyError> {
+    let storage_type_path = repo_path.join("storage.type");
+    
+    // Default to file-based storage if no marker file exists
+    if !storage_type_path.exists() {
+        return Ok("file".to_string());
+    }
+    
+    // Read the storage type from the marker file
+    let storage_type = fs::read_to_string(storage_type_path)?;
+    
+    // Trim and validate the storage type
+    let storage_type = storage_type.trim();
+    match storage_type {
+        "file" | "sqlite" => Ok(storage_type.to_string()),
+        _ => Err(KittyError::StorageType(format!("Invalid storage type: {}", storage_type)))
+    }
+}
+
 pub fn get_repository_salt(repo_path: &Path) -> Result<String, KittyError> {
     // First try to extract salt from a separate salt file (simpler approach)
     let salt_path = repo_path.join("salt.key");

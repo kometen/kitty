@@ -1,6 +1,7 @@
 use crate::{
     commands::init::{Crypto, KittyError, Repository, TrackedFile},
-    utils::file::{get_repository_path, get_repository_salt},
+    storage::sqlite::SqliteStorage,
+    utils::file::{get_repository_path, get_repository_salt, get_storage_type},
 };
 use chrono::Local;
 use rpassword::read_password;
@@ -116,17 +117,25 @@ pub fn list_files(options: Option<ListOptions>) -> Result<(), KittyError> {
     let password = read_password()?;
     println!();  // Add a newline after password input
 
-    // Read and decrypt repository configuration
-    let encrypted_config = fs::read(repo_path.join("config.enc"))?;
+    // Get the storage type
+    let storage_type = get_storage_type(&repo_path)?;
     
     // Get salt and create crypto instance
     let salt_str = get_repository_salt(&repo_path)?;
     let config_salt = hex::decode(&salt_str)?;
     let crypto = Crypto::from_password_and_salt(&password, &config_salt);
     
-    // Decrypt configuration
-    let decrypted_config = crypto.decrypt(&encrypted_config)?;
-    let repository: Repository = serde_json::from_slice(&decrypted_config)?;
+    // Load repository based on storage type
+    let repository = if storage_type == "sqlite" {
+        // Use SQLite storage
+        let storage = SqliteStorage::new(&repo_path)?;
+        storage.load_repository()?
+    } else {
+        // Use file-based storage
+        let encrypted_config = fs::read(repo_path.join("config.enc"))?;
+        let decrypted_config = crypto.decrypt(&encrypted_config)?;
+        serde_json::from_slice(&decrypted_config)?
+    };
 
     // Apply filters to the file list
     let filtered_files = filter_files(&repository.files, &options);

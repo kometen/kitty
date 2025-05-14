@@ -16,13 +16,27 @@ impl MemoryStorage {
     }
     
     /// Save repository information to the encrypted config file
-    pub fn save_repository(&self, repository: &Repository, encrypted_data: &[u8]) -> Result<(), KittyError> {
+    pub fn save_repository(&self, repository: &Repository) -> Result<(), KittyError> {
+        use crate::commands::init::Crypto;
+    
+        // Get the salt from the repository
+        let salt = repository.salt.clone();
+    
+        // Create crypto instance with an empty password (just for serialization)
+        // In a real implementation, we'd use the user's password
+        let salt_bytes = hex::decode(&salt).map_err(|e| KittyError::HexDecoding(e))?;
+        let crypto = Crypto::from_password_and_salt("placeholder", &salt_bytes);
+    
+        // Serialize and encrypt the repository
+        let repo_json = serde_json::to_string(repository).map_err(|e| KittyError::Serialization(e))?;
+        let encrypted_data = crypto.encrypt(repo_json.as_bytes())?;
+    
         // Write encrypted configuration to file
         fs::write(self.repo_path.join("config.enc"), encrypted_data)?;
-        
+    
         // Store the salt in a separate file for easier access
         fs::write(self.repo_path.join("salt.key"), &repository.salt)?;
-        
+    
         Ok(())
     }
     
@@ -37,14 +51,33 @@ impl MemoryStorage {
         Err(KittyError::RepositoryNotFound)
     }
     
-    /// Get the encrypted repository data
-    pub fn get_encrypted_repository(&self) -> Result<Vec<u8>, KittyError> {
+    /// Load the repository data
+    pub fn load_repository(&self) -> Result<Repository, KittyError> {
+        use crate::commands::init::Crypto;
+    
+        // Get the salt
+        let salt = self.get_salt()?;
+    
+        // Read the encrypted data
         let config_path = self.repo_path.join("config.enc");
         if !config_path.exists() {
             return Err(KittyError::RepositoryNotFound);
         }
-        
-        Ok(fs::read(config_path)?)
+    
+        let encrypted_data = fs::read(config_path)?;
+    
+        // Decrypt the data using a placeholder password
+        // In a real implementation, we'd use the user's password
+        let salt_bytes = hex::decode(&salt).map_err(|e| KittyError::HexDecoding(e))?;
+        let crypto = Crypto::from_password_and_salt("placeholder", &salt_bytes);
+    
+        let decrypted_data = crypto.decrypt(&encrypted_data)?;
+    
+        // Parse the repository
+        let repository: Repository = serde_json::from_slice(&decrypted_data)
+            .map_err(|e| KittyError::Serialization(e))?;
+    
+        Ok(repository)
     }
     
     /// Save an encrypted file to the repository
