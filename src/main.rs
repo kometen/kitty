@@ -4,10 +4,10 @@ mod storage;
 
 use clap::{Parser, Subcommand};
 use commands::add::add_file;
-use commands::diff::diff_file;
+use commands::diff::diff_files;
 use commands::init::{init_repository, KittyError};
 use commands::list::list_files;
-use commands::restore::restore_file;
+use commands::restore::{restore_file, restore_files};
 
 #[derive(Parser)]
 #[command(author, version, about = "A Git-like configuration management tool")]
@@ -40,12 +40,36 @@ enum Commands {
     Diff {
         /// Path to the file to diff
         path: Option<String>,
+        
+        /// Show files with changes only
+        #[arg(long)]
+        only_changed: bool,
+        
+        /// Show summary of changes
+        #[arg(long)]
+        summary: bool,
+        
+        /// Show a unified diff format
+        #[arg(long)]
+        unified: bool,
     },
 
     /// Restore files from the repository
     Restore {
         /// Path to the file to restore
         path: String,
+        
+        /// Don't prompt for confirmation
+        #[arg(long)]
+        force: bool,
+        
+        /// Show what would be restored without actually restoring
+        #[arg(long)]
+        dry_run: bool,
+        
+        /// Backup existing files before restoring
+        #[arg(long, default_value = "true")]
+        backup: bool,
     },
 
     /// List all tracked files
@@ -84,16 +108,24 @@ fn main() -> Result<(), KittyError> {
             // TODO: Implement status functionality
             Ok(())
         }
-        Commands::Diff { path } => {
-            if let Some(p) = path {
-                diff_file(p)
-            } else {
-                println!("Showing differences for all tracked files");
-                // TODO: Implement showing diff for all files
-                Ok(())
-            }
+        Commands::Diff { path, only_changed, summary, unified } => {
+            let options = commands::diff::DiffOptions {
+                path: path.clone(),
+                only_changed: *only_changed,
+                summary: *summary,
+                unified: *unified,
+            };
+            commands::diff::diff_files(Some(options))
         }
-        Commands::Restore { path } => restore_file(path),
+        Commands::Restore { path, force, dry_run, backup } => {
+            let options = commands::restore::RestoreOptions {
+                path: Some(path.clone()),
+                force: *force,
+                dry_run: *dry_run,
+                backup: *backup,
+            };
+            commands::restore::restore_files(Some(options))
+        },
         Commands::List { path, date, group, sqlite } => {
             let options = commands::list::ListOptions {
                 path: path.clone(),
