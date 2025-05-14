@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand};
 use commands::add::add_file;
 use commands::diff::diff_file;
 use commands::init::{init_repository, KittyError};
+use commands::list::list_files;
 use commands::restore::restore_file;
 
 #[derive(Parser)]
@@ -76,10 +77,6 @@ fn main() -> Result<(), KittyError> {
             }
         }
         Commands::Restore { path } => restore_file(path),
-        Commands::List => {
-            println!("Listing all tracked files...");
-            // TODO: Implement list functionality
-            Ok(())
-        }
+        Commands::List => list_files(),
     }
 }

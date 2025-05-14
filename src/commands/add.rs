@@ -50,14 +50,39 @@ pub fn add_file(path: &str) -> Result<(), KittyError> {
     // Read and decrypt repository configuration
     let encrypted_config = fs::read(repo_path.join("config.enc"))?;
 
-    // Extract salt from encrypted config
-    let config_salt = hex::decode(get_repository_salt(&repo_path)?)?;
+    // Get the salt from the repository
+    let salt_str = get_repository_salt(&repo_path)?;
+    println!("Retrieved salt (length={}): {}", salt_str.len(), &salt_str[..10]);
+    
+    // Decode the hex-encoded salt
+    let config_salt = match hex::decode(&salt_str) {
+        Ok(salt) => {
+            println!("Decoded salt successfully, length: {} bytes", salt.len());
+            salt
+        },
+        Err(e) => {
+            println!("Error decoding salt: {}", e);
+            return Err(KittyError::HexDecoding(e));
+        }
+    };
 
     // Create crypto instance with password and salt
     let crypto = Crypto::from_password_and_salt(&password, &config_salt);
 
     // Decrypt configuration
-    let decrypted_config = crypto.decrypt(&encrypted_config)?;
+    println!("Attempting to decrypt configuration...");
+    let decrypted_config = match crypto.decrypt(&encrypted_config) {
+        Ok(config) => {
+            println!("Decryption successful! Config length: {} bytes", config.len());
+            config
+        },
+        Err(e) => {
+            println!("Decryption failed: {}", e);
+            return Err(e);
+        }
+    };
+    
+    // Parse the JSON configuration
     let mut repository: Repository = serde_json::from_slice(&decrypted_config)?;
 
     // Generate a unique filename for the repository
