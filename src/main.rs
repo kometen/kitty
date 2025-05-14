@@ -7,6 +7,7 @@ use commands::add::add_file;
 use commands::diff::diff_files;
 use commands::init::{init_repository, KittyError};
 use commands::list::list_files;
+use commands::remove::remove_file;
 use commands::restore::{restore_file, restore_files};
 
 #[derive(Parser)]
@@ -31,6 +32,14 @@ enum Commands {
     Rm {
         /// Path to the file to remove
         path: String,
+        
+        /// Don't prompt for confirmation
+        #[arg(long)]
+        force: bool,
+        
+        /// Keep the file content in the repository, just stop tracking it
+        #[arg(long)]
+        keep_content: bool,
     },
 
     /// Show the status of tracked files
@@ -102,10 +111,13 @@ fn main() -> Result<(), KittyError> {
     match &cli.command {
         Commands::Init => init_repository(),
         Commands::Add { path } => add_file(path),
-        Commands::Rm { path } => {
-            println!("Removing file: {}", path);
-            // TODO: Implement remove functionality
-            Ok(())
+        Commands::Rm { path, force, keep_content } => {
+            let options = commands::remove::RemoveOptions {
+                path: path.clone(),
+                force: *force,
+                keep_content: *keep_content,
+            };
+            remove_file(&options)
         }
         Commands::Status => {
             println!("Checking status of tracked files...");
