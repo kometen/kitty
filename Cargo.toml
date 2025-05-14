@@ -1,0 +1,24 @@
+[package]
+name = "kitty"
+version = "0.1.0"
+edition = "2021"
+description = "A Git-inspired configuration management tool for FreeBSD servers"
+authors = ["Your Name <your.email@example.com>"]
+
+[dependencies]
+clap = { version = "4.4", features = ["derive"] }
+chacha20poly1305 = "0.10"
+aes-gcm = "0.10"
+ring = "0.17"
+sha2 = "0.10"
+pbkdf2 = "0.12"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+walkdir = "2.4"
+similar = "2.3"
+rpassword = "7.2"
+hex = "0.4"
+rand = "0.8"
+uuid = { version = "1.4", features = ["v4"] }
