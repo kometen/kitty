@@ -22,8 +22,11 @@ pub struct DiffOptions {
     /// Show summary of changes
     pub summary: bool,
     
-    /// Show a unified diff format
-    pub unified: bool,
+    /// Show a unified diff format with context
+    pub context: bool,
+    
+    /// Number of context lines to show (when context is true)
+    pub context_lines: usize,
 }
 
 impl Default for DiffOptions {
@@ -32,7 +35,8 @@ impl Default for DiffOptions {
             path: None,
             only_changed: false,
             summary: false,
-            unified: true,
+            context: false,
+            context_lines: 3,
         }
     }
 }
@@ -51,6 +55,7 @@ fn diff_single_file(
     repo_path: &Path,
     crypto: &Crypto,
     file: &TrackedFile,
+    options: &DiffOptions,
 ) -> Result<DiffResult, KittyError> {
     // Get the original file path
     let file_path = Path::new(&file.original_path);
@@ -83,6 +88,30 @@ fn diff_single_file(
     let mut deletions = 0;
     let mut diff_text = String::new();
     
+    // First pass: identify if there are any changes
+    let mut has_any_changes = false;
+    for change in diff.iter_all_changes() {
+        match change.tag() {
+            ChangeTag::Delete | ChangeTag::Insert => {
+                has_any_changes = true;
+                break;
+            },
+            _ => {}
+        }
+    }
+
+    // If no changes, just indicate files are identical
+    if !has_any_changes {
+        return Ok(DiffResult {
+            path: file.original_path.clone(),
+            has_changes: false,
+            additions: 0,
+            deletions: 0,
+            diff_text: "Files are identical.\n".to_string(),
+        });
+    }
+
+    // Second pass: track changes with proper formatting
     for change in diff.iter_all_changes() {
         match change.tag() {
             ChangeTag::Delete => {
@@ -94,7 +123,10 @@ fn diff_single_file(
                 diff_text.push_str(&format!("{}{}", "+".green(), change));
             },
             ChangeTag::Equal => {
-                diff_text.push_str(&format!(" {}", change));
+                // Only include unchanged lines if context mode is enabled
+                if options.context {
+                    diff_text.push_str(&format!(" {}", change));
+                }
             },
         }
     }
@@ -113,6 +145,7 @@ fn diff_single_file(
 /// List files with differences
 pub fn diff_files(options: Option<DiffOptions>) -> Result<(), KittyError> {
     let options = options.unwrap_or_default();
+    let show_context = options.context;
     let repo_path = get_repository_path()?;
 
     if !repo_path.exists() {
@@ -168,7 +201,7 @@ pub fn diff_files(options: Option<DiffOptions>) -> Result<(), KittyError> {
     let mut files_with_changes = 0;
     
     for file in files_to_diff {
-        let result = diff_single_file(&repo_path, &crypto, file)?;
+        let result = diff_single_file(&repo_path, &crypto, file, &options)?;
         
         if result.has_changes {
             files_with_changes += 1;
@@ -214,7 +247,8 @@ pub fn diff_file(path: &str) -> Result<(), KittyError> {
         path: Some(path.to_string()),
         only_changed: false,
         summary: false,
-        unified: true,
+        context: false,
+        context_lines: 3,
     };
     
     diff_files(Some(options))

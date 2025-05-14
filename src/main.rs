@@ -49,9 +49,13 @@ enum Commands {
         #[arg(long)]
         summary: bool,
         
-        /// Show a unified diff format
+        /// Show a unified diff format with context
         #[arg(long)]
-        unified: bool,
+        context: bool,
+        
+        /// Number of context lines to show
+        #[arg(long, default_value = "3")]
+        context_lines: usize,
     },
 
     /// Restore files from the repository
@@ -108,12 +112,13 @@ fn main() -> Result<(), KittyError> {
             // TODO: Implement status functionality
             Ok(())
         }
-        Commands::Diff { path, only_changed, summary, unified } => {
+        Commands::Diff { path, only_changed, summary, context, context_lines } => {
             let options = commands::diff::DiffOptions {
                 path: path.clone(),
                 only_changed: *only_changed,
                 summary: *summary,
-                unified: *unified,
+                context: *context,
+                context_lines: *context_lines,
             };
             commands::diff::diff_files(Some(options))
         }
