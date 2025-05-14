@@ -2,8 +2,8 @@
 name = "kitty"
 version = "0.1.0"
 edition = "2021"
-description = "A Git-inspired configuration management tool for FreeBSD servers"
-authors = ["Your Name <your.email@example.com>"]
+description = "A Git-inspired configuration management tool to keep track of files"
+authors = ["Claus Guttesen <kometen@gmail.com>"]
 
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }
