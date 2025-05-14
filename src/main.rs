@@ -1,5 +1,6 @@
 mod commands;
 mod utils;
+mod storage;
 
 use clap::{Parser, Subcommand};
 use commands::add::add_file;
@@ -48,7 +49,23 @@ enum Commands {
     },
 
     /// List all tracked files
-    List,
+    List {
+        /// Filter files by path (partial match)
+        #[arg(long)]
+        path: Option<String>,
+        
+        /// Filter files by date (format: YYYY-MM-DD)
+        #[arg(long)]
+        date: Option<String>,
+        
+        /// Group files by path components
+        #[arg(long)]
+        group: bool,
+        
+        /// Use SQLite storage (experimental)
+        #[arg(long)]
+        sqlite: bool,
+    },
 }
 
 fn main() -> Result<(), KittyError> {
@@ -77,6 +94,17 @@ fn main() -> Result<(), KittyError> {
             }
         }
         Commands::Restore { path } => restore_file(path),
-        Commands::List => list_files(),
+        Commands::List { path, date, group, sqlite } => {
+            let options = commands::list::ListOptions {
+                path: path.clone(),
+                date: date.clone(),
+                group: *group,
+            };
+            if *sqlite {
+                println!("Note: Using experimental SQLite storage");
+                // TODO: Implement SQLite storage integration
+            }
+            list_files(Some(options))
+        },
     }
 }

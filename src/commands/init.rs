@@ -1,4 +1,4 @@
-use crate::utils::file::{get_repository_path, get_repository_salt};
+use crate::utils::file::get_repository_path;
 use chacha20poly1305::aead::Aead;
 use chacha20poly1305::{ChaCha20Poly1305, Key, KeyInit, Nonce};
 use chrono::{DateTime, Utc};
@@ -59,7 +59,7 @@ pub struct Repository {
     pub files: Vec<TrackedFile>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct TrackedFile {
     pub original_path: String,
     pub repo_path: String, // Relative path in repository

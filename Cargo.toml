@@ -22,3 +22,4 @@ rpassword = "7.2"
 hex = "0.4"
 rand = "0.8"
 uuid = { version = "1.4", features = ["v4"] }
+rusqlite = { version = "0.29", features = ["bundled"] }
