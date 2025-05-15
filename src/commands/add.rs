@@ -128,16 +128,30 @@ pub fn add_file(path: &str) -> Result<(), KittyError> {
         tracked_file.last_updated = now;
         tracked_file.hash = "placeholder_hash".to_string(); // Updated hash
 
-        // Save encrypted file to repository using the same path
-        fs::write(repo_path.join(&repo_file_path), encrypted_content)?;
+        // For file-based storage, save file immediately
+        if storage_type != "sqlite" {
+            // Save to filesystem for file-based storage
+            fs::write(repo_path.join(&repo_file_path), &encrypted_content)?;
+        }
+        // For SQLite storage, we'll save the file content after updating the repository metadata
     } else {
         // File is not tracked yet, create a new entry
         // Generate a unique filename for the repository
         let file_id = Uuid::new_v4().to_string();
         let repo_file_path = format!("files/{}", file_id);
 
-        // Save encrypted file to repository
-        fs::write(repo_path.join(&repo_file_path), encrypted_content)?;
+        // For file-based storage, save file immediately
+        if storage_type != "sqlite" {
+            // Save to filesystem for file-based storage
+            fs::write(repo_path.join(&repo_file_path), &encrypted_content)?;
+        } else {
+            // Create parent directories (only needed for file-based, but doesn't hurt)
+            let dir_path = repo_path.join("files");
+            if !dir_path.exists() {
+                fs::create_dir_all(dir_path)?;
+            }
+            // For SQLite storage, we'll save the file content after updating the repository metadata
+        }
 
         // Add new entry to repository config
         repository.files.push(TrackedFile {
@@ -153,8 +167,22 @@ pub fn add_file(path: &str) -> Result<(), KittyError> {
     // Save repository based on storage type
     if storage_type == "sqlite" {
         // Use SQLite storage
-        let storage = SqliteStorage::new(&repo_path)?;
+        let mut storage = SqliteStorage::new(&repo_path)?;
+
+        // First save the repository metadata
         storage.save_repository(&repository)?;
+
+        // Now save the file content after the metadata is saved
+        // This is crucial for SQLite storage to work correctly
+        if let Some(index) = existing_file_index {
+            // Use existing file's repo_path
+            let repo_file_path = &repository.files[index].repo_path;
+            storage.save_file(repo_file_path, &encrypted_content)?;
+        } else {
+            // Use the newly created repo_file_path
+            let repo_file_path = &repository.files[0].repo_path;
+            storage.save_file(&repo_file_path, &encrypted_content)?;
+        }
     } else {
         // Serialize and encrypt updated configuration
         let updated_config_json = serde_json::to_string(&repository)?;

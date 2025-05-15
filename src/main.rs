@@ -107,6 +107,13 @@ enum Commands {
         #[arg(long)]
         sqlite: bool,
     },
+    
+    /// Migrate file content to SQLite database (for SQLite storage mode)
+    MigrateSqlite {
+        /// Run migration without prompt
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 fn main() -> Result<(), KittyError> {
@@ -183,6 +190,68 @@ fn main() -> Result<(), KittyError> {
                 // TODO: Implement SQLite storage integration
             }
             list_files(Some(options))
+        }
+        Commands::MigrateSqlite { force } => {
+            use std::process::Command;
+            
+            let repo_path = utils::file::get_repository_path()?;
+            if !repo_path.exists() {
+                return Err(KittyError::RepositoryNotFound);
+            }
+            
+            let storage_type = utils::file::get_storage_type(&repo_path)?;
+            if storage_type != "sqlite" {
+                println!("Error: This repository is not using SQLite storage.");
+                println!("Only SQLite repositories need migration.");
+                return Ok(());
+            }
+            
+            if !*force {
+                use std::io::{self, Write};
+                
+                print!("This will migrate file content from the filesystem to the SQLite database. Continue? [y/N] ");
+                io::stdout().flush()?;
+                
+                let mut input = String::new();
+                io::stdin().read_line(&mut input)?;
+                
+                if !["y", "yes"].contains(&input.trim().to_lowercase().as_str()) {
+                    println!("Migration aborted.");
+                    return Ok(());
+                }
+            }
+            
+            println!("Running migration script...");
+            
+            // Find the script path relative to the current executable
+            let current_exe = std::env::current_exe()?;
+            let script_dir = current_exe.parent().unwrap_or(std::path::Path::new("."));
+            let script_path = script_dir.join("migrate_sqlite.sh");
+            
+            let status = if script_path.exists() {
+                Command::new(&script_path)
+                    .status()
+            } else {
+                // Fallback to searching in the current directory
+                Command::new("./migrate_sqlite.sh")
+                    .status()
+            };
+            
+            match status {
+                Ok(exit_status) => {
+                    if exit_status.success() {
+                        println!("Migration completed successfully.");
+                    } else {
+                        println!("Migration failed with status: {}", exit_status);
+                    }
+                },
+                Err(e) => {
+                    println!("Failed to run migration script: {}", e);
+                    println!("Please run the migrate_sqlite.sh script manually.");
+                }
+            }
+            
+            Ok(())
         }
     }
 }

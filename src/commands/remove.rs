@@ -125,7 +125,7 @@ pub fn remove_file(options: &RemoveOptions) -> Result<(), KittyError> {
         // Save repository based on storage type
         if storage_type == "sqlite" {
             // Use SQLite storage
-            let storage = SqliteStorage::new(&repo_path)?;
+            let mut storage = SqliteStorage::new(&repo_path)?;
             storage.save_repository(&repository)?;
         } else {
             // Use file-based storage
