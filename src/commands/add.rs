@@ -3,6 +3,8 @@ use crate::{
     storage::sqlite::SqliteStorage,
     utils::file::{get_repository_path, get_repository_salt, get_storage_type},
 };
+
+use blake3;
 use chrono::Utc;
 use rpassword::read_password;
 use std::{
@@ -114,6 +116,8 @@ pub fn add_file(path: &str) -> Result<(), KittyError> {
     // Encrypt file content
     let encrypted_content = crypto.encrypt(&file_content)?;
 
+    let hash = blake3::hash(&file_content).to_hex().to_string();
+
     let now = Utc::now();
 
     if let Some(index) = existing_file_index {
@@ -126,7 +130,7 @@ pub fn add_file(path: &str) -> Result<(), KittyError> {
 
         // Update the tracked file metadata
         tracked_file.last_updated = now;
-        tracked_file.hash = "placeholder_hash".to_string(); // Updated hash
+        tracked_file.hash = hash; // Updated hash
 
         // For file-based storage, save file immediately
         if storage_type != "sqlite" {
@@ -153,7 +157,7 @@ pub fn add_file(path: &str) -> Result<(), KittyError> {
             added_at: now,
             last_updated: now,
             // In a real implementation, you would compute a hash here
-            hash: "placeholder_hash".to_string(),
+            hash: hash,
         });
     }
 
