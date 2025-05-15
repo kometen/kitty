@@ -55,6 +55,7 @@ pub fn restore_files(options: Option<RestoreOptions>) -> Result<(), KittyError> 
 
     // Get the storage type
     let storage_type = get_storage_type(&repo_path)?;
+    println!("Using storage type: {}", storage_type);
 
     // Get salt and create crypto instance
     let config_salt = hex::decode(get_repository_salt(&repo_path)?)?;
@@ -131,22 +132,60 @@ pub fn restore_files(options: Option<RestoreOptions>) -> Result<(), KittyError> 
 
     for file in &files_to_process {
         let file_path = Path::new(&file.original_path);
-        println!("\nProcessing: {}", file.original_path.bold());
+        println!("\nProcessing: {} (storage: {})", 
+            file.original_path.bold(),
+            if storage_type == "sqlite" { "SQLite".blue() } else { "File".green() }
+        );
 
-        // Read and decrypt the stored file content
-        let encrypted_stored_content = match fs::read(repo_path.join(&file.repo_path)) {
-            Ok(content) => content,
-            Err(e) => {
-                println!(
-                    "  {} Could not read repository file: {}",
-                    "ERROR:".red().bold(),
-                    e
-                );
-                error_count += 1;
-                continue;
+        // Read the stored file content based on storage type
+        let encrypted_stored_content = if storage_type == "sqlite" {
+            // Use SQLite storage to get the file content
+            match SqliteStorage::new(&repo_path) {
+                Ok(storage) => match storage.get_file(&file.repo_path) {
+                    Ok(content) => {
+                        println!("  Retrieved {} bytes from SQLite database", content.len());
+                        content
+                    },
+                    Err(e) => {
+                        println!(
+                            "  {} Could not read file from SQLite database: {}",
+                            "ERROR:".red().bold(),
+                            e
+                        );
+                        error_count += 1;
+                        continue;
+                    }
+                },
+                Err(e) => {
+                    println!(
+                        "  {} Could not connect to SQLite database: {}",
+                        "ERROR:".red().bold(),
+                        e
+                    );
+                    error_count += 1;
+                    continue;
+                }
+            }
+        } else {
+            // Use file-based storage
+            match fs::read(repo_path.join(&file.repo_path)) {
+                Ok(content) => {
+                    println!("  Retrieved {} bytes from file storage", content.len());
+                    content
+                },
+                Err(e) => {
+                    println!(
+                        "  {} Could not read repository file: {}",
+                        "ERROR:".red().bold(),
+                        e
+                    );
+                    error_count += 1;
+                    continue;
+                }
             }
         };
 
+        // Decrypt the file content
         let decrypted_stored_content = match crypto.decrypt(&encrypted_stored_content) {
             Ok(content) => content,
             Err(e) => {
@@ -222,7 +261,9 @@ pub fn restore_files(options: Option<RestoreOptions>) -> Result<(), KittyError> 
         // Write the file content
         match fs::write(file_path, &decrypted_stored_content) {
             Ok(_) => {
-                println!("  {} File restored successfully", "SUCCESS:".green().bold());
+                println!("  {} File restored successfully ({} bytes)", 
+                    "SUCCESS:".green().bold(), 
+                    decrypted_stored_content.len());
                 restored_count += 1;
             }
             Err(e) => {
@@ -236,9 +277,15 @@ pub fn restore_files(options: Option<RestoreOptions>) -> Result<(), KittyError> 
     println!("\nRestore Summary");
     println!("==============");
     println!("Files processed: {}", files_count);
-    println!("Restored: {}", restored_count);
-    println!("Skipped: {}", skipped_count);
-    println!("Errors: {}", error_count);
+    println!("Restored: {} file(s)", restored_count);
+    println!("Skipped: {} file(s)", skipped_count);
+    println!("Errors: {} file(s)", error_count);
+    
+    if storage_type == "sqlite" {
+        println!("\nStorage: SQLite database");
+    } else {
+        println!("\nStorage: File-based");
+    }
 
     Ok(())
 }
