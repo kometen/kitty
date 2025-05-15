@@ -144,13 +144,6 @@ pub fn add_file(path: &str) -> Result<(), KittyError> {
         if storage_type != "sqlite" {
             // Save to filesystem for file-based storage
             fs::write(repo_path.join(&repo_file_path), &encrypted_content)?;
-        } else {
-            // Create parent directories (only needed for file-based, but doesn't hurt)
-            let dir_path = repo_path.join("files");
-            if !dir_path.exists() {
-                fs::create_dir_all(dir_path)?;
-            }
-            // For SQLite storage, we'll save the file content after updating the repository metadata
         }
 
         // Add new entry to repository config
