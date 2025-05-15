@@ -1,4 +1,4 @@
-use crate::utils::file::{get_repository_path, get_storage_type};
+use crate::utils::file::get_repository_path;
 use chacha20poly1305::aead::Aead;
 use chacha20poly1305::{ChaCha20Poly1305, Key, KeyInit, Nonce};
 use chrono::{DateTime, Utc};
@@ -174,10 +174,6 @@ impl Default for InitOptions {
     fn default() -> Self {
         Self { use_sqlite: false }
     }
-}
-
-pub fn init_repository() -> Result<(), KittyError> {
-    init_repository_with_options(&InitOptions::default())
 }
 
 pub fn init_repository_with_options(options: &InitOptions) -> Result<(), KittyError> {

@@ -132,9 +132,14 @@ pub fn restore_files(options: Option<RestoreOptions>) -> Result<(), KittyError> 
 
     for file in &files_to_process {
         let file_path = Path::new(&file.original_path);
-        println!("\nProcessing: {} (storage: {})", 
+        println!(
+            "\nProcessing: {} (storage: {})",
             file.original_path.bold(),
-            if storage_type == "sqlite" { "SQLite".blue() } else { "File".green() }
+            if storage_type == "sqlite" {
+                "SQLite".blue()
+            } else {
+                "File".green()
+            }
         );
 
         // Read the stored file content based on storage type
@@ -145,7 +150,7 @@ pub fn restore_files(options: Option<RestoreOptions>) -> Result<(), KittyError> 
                     Ok(content) => {
                         println!("  Retrieved {} bytes from SQLite database", content.len());
                         content
-                    },
+                    }
                     Err(e) => {
                         println!(
                             "  {} Could not read file from SQLite database: {}",
@@ -172,7 +177,7 @@ pub fn restore_files(options: Option<RestoreOptions>) -> Result<(), KittyError> 
                 Ok(content) => {
                     println!("  Retrieved {} bytes from file storage", content.len());
                     content
-                },
+                }
                 Err(e) => {
                     println!(
                         "  {} Could not read repository file: {}",
@@ -261,9 +266,11 @@ pub fn restore_files(options: Option<RestoreOptions>) -> Result<(), KittyError> 
         // Write the file content
         match fs::write(file_path, &decrypted_stored_content) {
             Ok(_) => {
-                println!("  {} File restored successfully ({} bytes)", 
-                    "SUCCESS:".green().bold(), 
-                    decrypted_stored_content.len());
+                println!(
+                    "  {} File restored successfully ({} bytes)",
+                    "SUCCESS:".green().bold(),
+                    decrypted_stored_content.len()
+                );
                 restored_count += 1;
             }
             Err(e) => {
@@ -280,7 +287,7 @@ pub fn restore_files(options: Option<RestoreOptions>) -> Result<(), KittyError> 
     println!("Restored: {} file(s)", restored_count);
     println!("Skipped: {} file(s)", skipped_count);
     println!("Errors: {} file(s)", error_count);
-    
+
     if storage_type == "sqlite" {
         println!("\nStorage: SQLite database");
     } else {
@@ -288,16 +295,4 @@ pub fn restore_files(options: Option<RestoreOptions>) -> Result<(), KittyError> 
     }
 
     Ok(())
-}
-
-// Legacy function for backward compatibility
-pub fn restore_file(path: &str) -> Result<(), KittyError> {
-    let options = RestoreOptions {
-        path: Some(path.to_string()),
-        force: false,
-        dry_run: false,
-        backup: true,
-    };
-
-    restore_files(Some(options))
 }

@@ -1,7 +1,7 @@
 use crate::commands::init::{KittyError, Repository, TrackedFile};
 use chrono::{DateTime, Utc};
 use rusqlite::{params, types::Type, Connection};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// SQLite storage for the kitty repository
 pub struct SqliteStorage {
@@ -427,9 +427,4 @@ impl SqliteStorage {
             }
         }
     }
-}
-
-/// A helper function to get the SQLite database path
-pub fn get_db_path(repo_path: &Path) -> PathBuf {
-    repo_path.join("kitty.db")
 }

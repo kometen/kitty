@@ -1,5 +1,5 @@
 use crate::{
-    commands::init::{Crypto, KittyError, Repository, TrackedFile},
+    commands::init::{Crypto, KittyError, TrackedFile},
     storage::sqlite::SqliteStorage,
     utils::file::{get_repository_path, get_repository_salt, get_storage_type},
 };
@@ -16,10 +16,10 @@ use std::{
 pub struct ListOptions {
     /// Filter files by path (partial match)
     pub path: Option<String>,
-    
+
     /// Filter files by date (format: YYYY-MM-DD)
     pub date: Option<String>,
-    
+
     /// Group files by path components
     pub group: bool,
 }
@@ -40,14 +40,14 @@ fn filter_files(files: &[TrackedFile], options: &ListOptions) -> Vec<TrackedFile
 
     for file in files {
         let mut include = true;
-    
+
         // Apply path filter if specified
         if let Some(path_filter) = &options.path {
             if !file.original_path.contains(path_filter) {
                 include = false;
             }
         }
-    
+
         // Apply date filter if specified
         if let Some(date_filter) = &options.date {
             let file_date = file.last_updated.format("%Y-%m-%d").to_string();
@@ -55,7 +55,7 @@ fn filter_files(files: &[TrackedFile], options: &ListOptions) -> Vec<TrackedFile
                 include = false;
             }
         }
-    
+
         if include {
             result.push(file.clone());
         }
@@ -71,11 +71,10 @@ fn display_grouped_files(files: &[TrackedFile]) {
     // Group files by directory
     for file in files {
         let path = Path::new(&file.original_path);
-        let parent = path.parent()
-            .and_then(|p| p.to_str())
-            .unwrap_or("Other");
-    
-        groups.entry(parent.to_string())
+        let parent = path.parent().and_then(|p| p.to_str()).unwrap_or("Other");
+
+        groups
+            .entry(parent.to_string())
             .or_insert_with(Vec::new)
             .push(file.clone());
     }
@@ -85,18 +84,19 @@ fn display_grouped_files(files: &[TrackedFile]) {
         println!("\n[{}] - {} file(s)", group, group_files.len());
         println!("{:<5} {:<50} {:<25}", "ID", "Filename", "Last Updated");
         println!("{:<5} {:<50} {:<25}", "---", "--------", "------------");
-    
+
         for (idx, file) in group_files.iter().enumerate() {
             // Get just the filename instead of the full path
             let filename = Path::new(&file.original_path)
                 .file_name()
                 .and_then(|f| f.to_str())
                 .unwrap_or(&file.original_path);
-            
-            let last_updated = file.last_updated
+
+            let last_updated = file
+                .last_updated
                 .with_timezone(&Local)
                 .format("%Y-%m-%d %H:%M:%S");
-            
+
             println!("{:<5} {:<50} {:<25}", idx + 1, filename, last_updated);
         }
     }
@@ -115,16 +115,16 @@ pub fn list_files(options: Option<ListOptions>) -> Result<(), KittyError> {
     print!("Enter repository password: ");
     io::stdout().flush()?;
     let password = read_password()?;
-    println!();  // Add a newline after password input
+    println!(); // Add a newline after password input
 
     // Get the storage type
     let storage_type = get_storage_type(&repo_path)?;
-    
+
     // Get salt and create crypto instance
     let salt_str = get_repository_salt(&repo_path)?;
     let config_salt = hex::decode(&salt_str)?;
     let crypto = Crypto::from_password_and_salt(&password, &config_salt);
-    
+
     // Load repository based on storage type
     let repository = if storage_type == "sqlite" {
         // Use SQLite storage
@@ -139,7 +139,7 @@ pub fn list_files(options: Option<ListOptions>) -> Result<(), KittyError> {
 
     // Apply filters to the file list
     let filtered_files = filter_files(&repository.files, &options);
-    
+
     if filtered_files.is_empty() {
         if options.path.is_some() || options.date.is_some() {
             println!("No files match the specified filters.");
@@ -159,13 +159,19 @@ pub fn list_files(options: Option<ListOptions>) -> Result<(), KittyError> {
 
         for (idx, file) in filtered_files.iter().enumerate() {
             let path_display = if file.original_path.len() > 50 {
-                format!("...{}", &file.original_path[file.original_path.len() - 47..])
+                format!(
+                    "...{}",
+                    &file.original_path[file.original_path.len() - 47..]
+                )
             } else {
                 file.original_path.clone()
             };
 
             // Format the last updated date in a human-readable format
-            let last_updated = file.last_updated.with_timezone(&Local).format("%Y-%m-%d %H:%M:%S");
+            let last_updated = file
+                .last_updated
+                .with_timezone(&Local)
+                .format("%Y-%m-%d %H:%M:%S");
 
             println!("{:<5} {:<50} {:<25}", idx + 1, path_display, last_updated);
         }

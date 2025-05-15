@@ -173,14 +173,14 @@ pub fn diff_files(options: Option<DiffOptions>) -> Result<(), KittyError> {
     io::stdout().flush()?;
     let password = read_password()?;
     println!(); // Add a newline after password input
-    
+
     // Get storage type
     let storage_type = get_storage_type(&repo_path)?;
-    
+
     // Get salt and create crypto instance
     let config_salt = hex::decode(get_repository_salt(&repo_path)?)?;
     let crypto = Crypto::from_password_and_salt(&password, &config_salt);
-    
+
     // Load repository based on storage type
     let repository: Repository = if storage_type == "sqlite" {
         // Use SQLite storage to load repository
@@ -269,17 +269,4 @@ pub fn diff_files(options: Option<DiffOptions>) -> Result<(), KittyError> {
     }
 
     Ok(())
-}
-
-// Legacy function for backward compatibility
-pub fn diff_file(path: &str) -> Result<(), KittyError> {
-    let options = DiffOptions {
-        path: Some(path.to_string()),
-        only_changed: false,
-        summary: false,
-        context: false,
-        context_lines: 3,
-    };
-
-    diff_files(Some(options))
 }
